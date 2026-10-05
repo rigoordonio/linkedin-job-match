@@ -51,6 +51,11 @@ For a new person: read their CV first, then create `profiles/<name>.local.md` fr
 The user authorized a daily automatic email to the person named in `config.local.md`
 (2026-10-02). In daily mode do NOT ask questions; run start to finish.
 
+**Finish in one turn.** This runs headless (`claude -p`), which exits the moment you end
+your turn. Never use `run_in_background`, never say you will "wait" or "check back", and
+never end with a step still pending. Every run must end with a line appended to
+`state/log.txt` for today.
+
 Files:
 - The profile's sent-jobs file (e.g. `state/<name>_sent.json`) — job IDs already emailed. Never resend these.
 - `state/log.txt` — append one line per run: date, jobs found, jobs sent, status.
@@ -63,9 +68,15 @@ Steps:
      --location <country> --days 7 --pages 2 \
      --exclude <sent-jobs file> --out state/today.json
    ```
+   The script already waits and retries when LinkedIn rate-limits (up to ~4 minutes; use a
+   Bash timeout of 600000 ms). Do not retry it yourself. If it exits with an error or returns
+   0 jobs, go straight to the Composio `COMPOSIO_SEARCH_WEB` fallback in this same run
+   (queries like `site:linkedin.com/jobs/view remote <keyword> <country>`), skip IDs already in
+   the sent-jobs file, and read each job page with `COMPOSIO_SEARCH_FETCH_URL_CONTENT` before ranking.
 2. Verify remote and rank exactly as in steps 3–4 above. Pick **up to 20** genuine matches.
    Quality over count: never pad with onsite/hybrid jobs or unrelated roles.
-3. If 0 good new matches: send nothing, log "no new matches", stop.
+3. If 0 good new matches: send nothing, log "no new matches", stop. If both LinkedIn and the
+   fallback failed, log "fetch failed: <reason>" (not "no new matches") and stop.
 4. Send ONE email with Composio `GMAIL_SEND_EMAIL` (from the sender Gmail account in config):
    - `recipient_email`: the profile's recipient email
    - `bcc`: [the BCC address in config] (so the user sees what was sent)

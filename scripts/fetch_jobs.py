@@ -8,17 +8,28 @@ Usage:
 
 Writes a JSON list of {id, url, title, company, location, posted, description}.
 """
-import argparse, html, json, re, time, urllib.parse, urllib.request
+import argparse, html, json, re, sys, time, urllib.error, urllib.parse, urllib.request
 
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
 SEARCH = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 DETAIL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{}"
+RETRY_WAITS = (30, 60, 120)  # seconds to wait after each rate-limit response
 
 
 def get(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read().decode("utf-8", "replace")
+    """GET a page, waiting and retrying when LinkedIn rate-limits (429/999) or errors (5xx)."""
+    for attempt in range(len(RETRY_WAITS) + 1):
+        req = urllib.request.Request(url, headers=UA)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            if (e.code in (429, 999) or e.code >= 500) and attempt < len(RETRY_WAITS):
+                wait = RETRY_WAITS[attempt]
+                print(f"HTTP {e.code}, retrying in {wait}s", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            raise
 
 
 def text(fragment):
@@ -34,7 +45,12 @@ def search(keyword, location, days, pages):
             "f_TPR": f"r{days * 86400}",    # posted within N days
             "start": page * 25,
         })
-        body = get(f"{SEARCH}?{q}")
+        try:
+            body = get(f"{SEARCH}?{q}")
+        except Exception:
+            if page == 0:
+                raise
+            break  # keep the pages already fetched
         if not body.strip():
             break
         for card in body.split("<li>")[1:]:
@@ -74,9 +90,15 @@ def main():
         except FileNotFoundError:
             pass
 
-    jobs = {}
+    jobs, failed = {}, []
     for kw in a.keywords:
-        jobs.update(search(kw, a.location, a.days, a.pages))
+        try:
+            jobs.update(search(kw, a.location, a.days, a.pages))
+        except Exception as e:
+            failed.append(kw)
+            print(f"search failed for {kw!r}: {e}", file=sys.stderr)
+    if failed and len(failed) == len(a.keywords):
+        sys.exit("LinkedIn search failed for every keyword; use the web search fallback")
     jobs = {k: v for k, v in jobs.items() if k not in skip}
 
     for job in jobs.values():
@@ -90,7 +112,7 @@ def main():
 
     out = sorted(jobs.values(), key=lambda j: j["posted"], reverse=True)
     json.dump(out, open(a.out, "w"), indent=1, ensure_ascii=False)
-    print(f"{len(out)} jobs -> {a.out}")
+    print(f"{len(out)} jobs -> {a.out}" + (f" (failed keywords: {', '.join(failed)})" if failed else ""))
     for j in out:
         print(f'{j["posted"]} | {j["title"]} | {j["company"]} | {j["url"]}')
 
