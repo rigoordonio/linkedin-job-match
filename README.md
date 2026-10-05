@@ -53,7 +53,14 @@ sed "s/YOUR_USER/$USER/g" launchd/linkedin-job-match.plist.example \
 launchctl load ~/Library/LaunchAgents/com.$USER.linkedin-job-match.plist
 ```
 
-The job runs at 8:00 every day. If the Mac was asleep, it runs on wake, and never more than once a day.
+The job runs at 8:00 every day. If the Mac was asleep, it runs on wake. Once a run succeeds, it won't run again that day.
+
+**Error handling**
+- If LinkedIn returns "Too Many Requests" (HTTP 429) or a server error, `fetch_jobs.py` waits 30, 60, then 120 seconds and tries again.
+- If LinkedIn still refuses, the run switches to Composio web search in the same run.
+- If the whole run fails, `run_daily.sh` tries again up to 3 times, 30 minutes apart. After that it logs "gave up after 3 attempts".
+- Every run writes one line to `state/log.txt`: sent, no new matches, fetch failed, or gave up.
+- A lock stops two runs from overlapping, and already-sent jobs are never resent.
 
 ## Usage
 
@@ -71,6 +78,6 @@ Test the daily run by hand: `./run_daily.sh` (it skips if it has already run tod
 
 - Never sends LinkedIn DMs. LinkedIn's API doesn't allow it, and automating it breaks LinkedIn's terms. You paste the message yourself.
 - Daily emails go only to someone who has agreed to receive them.
-- Uses only LinkedIn's public job pages, with pauses between requests. If LinkedIn rate-limits it, it falls back to web search.
+- Uses only LinkedIn's public job pages, with pauses between requests. If LinkedIn rate-limits it, it waits and retries before falling back to web search.
 - No API keys are stored in this repo. Gmail access is handled by your Composio account.
 - CVs, emails and sent-job history stay in git-ignored local files.
