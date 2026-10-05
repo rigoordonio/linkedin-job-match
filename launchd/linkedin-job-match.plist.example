@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Copy to ~/Library/LaunchAgents/, replace YOUR_USER, then:
+     launchctl load ~/Library/LaunchAgents/com.YOUR_USER.linkedin-job-match.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.YOUR_USER.linkedin-job-match</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/zsh</string><string>-l</string><string>/Users/YOUR_USER/.claude/skills/linkedin-job-match/run_daily.sh</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardErrorPath</key><string>/Users/YOUR_USER/.claude/skills/linkedin-job-match/state/launchd.err</string>
+</dict>
+</plist>

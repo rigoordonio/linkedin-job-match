@@ -1,0 +1,5 @@
+# Personal details, CV data and run history stay local
+config.local.md
+profiles/*.local.md
+state/
+.DS_Store
